@@ -7,13 +7,31 @@ import time
 import threading
 import spotipy
 import random
-import tokens
+import os.path
+import json
 from spotipy.oauth2 import SpotifyClientCredentials
 
-client = commands.Bot(command_prefix='.')  # prefix our commands with '.'
-token = tokens.epic_test_bot
+# check voor config bestand.
+file_exists = os.path.exists('config.json')
+if os.path.exists('config.json') == False:
+    # maak bestand aan
+    print("There is no config file. Making a file...")
+    config = {"bottoken": "???", "spotify-id": "???", "SpotifySecret": "???"}
+    with open('config.json', 'w') as f:
+        json.dump(config, f)
+    print("Setup the config file and restart python")
+    exit()
 
-sp = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials(client_id=tokens.sp_id, client_secret=tokens.sp_secret))
+# opening config file to read tokens
+with open('config.json', 'r') as f:
+    config = json.load(f)
+    ## bottoken is dus config["bottoken"]
+
+
+client = commands.Bot(command_prefix='.')  # prefix our commands with '.'
+token = config["bottoken"]
+
+sp = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials(client_id=config["spotify-id"], client_secret=config["SpotifySecret"]))
 
 @client.event  # check if bot is ready
 async def on_ready():
@@ -194,6 +212,7 @@ async def play(ctx, *search):
                         pass
                 info['duration'] = info['duration']/1000
                 print(info)
+
 
 
             if links == []:
