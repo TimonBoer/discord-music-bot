@@ -252,6 +252,16 @@ async def play(ctx, *search):
                     thread.join()
                 await ctx.send(embed=create_embed('Added to queue', discord.Color.purple(), info))
 
+@client.command(aliases=['radio'])
+async def radio2(ctx, url: str = 'https://icecast.omroep.nl/radio2-bb-mp3'):
+    channel = ctx.message.author.voice.channel
+    global player
+    try:
+        player = await channel.connect()
+    except:
+        pass
+    player.play(FFmpegPCMAudio('https://icecast.omroep.nl/radio2-bb-mp3'))
+    #ctx.send("Ok ga ik spelen en mogelijk alle shit breken.")
 
 
 @client.command()
