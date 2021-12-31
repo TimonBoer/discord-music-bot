@@ -60,12 +60,16 @@ async def on_ready():
 
 
 def convduration(duration):
-    if duration < 3600:
-        return time.strftime('%M:%S', time.gmtime(duration))
-    elif duration < 3600*24:
-        return time.strftime('%H:%M:%S', time.gmtime(duration))
-    else:
-        return time.strftime('%D:%H:%M:%S', time.gmtime(duration))
+    try:
+        duration = int(duration)
+        if duration < 3600:
+            return time.strftime('%M:%S', time.gmtime(duration))
+        elif duration < 3600*24:
+            return time.strftime('%H:%M:%S', time.gmtime(duration))
+        else:
+            return time.strftime('%D:%H:%M:%S', time.gmtime(duration))
+    except:
+        return duration
 
 
 
@@ -99,39 +103,35 @@ async def SongPlayer(ctx):
     global cnl
     FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
     voice = get(client.voice_clients, guild=ctx.guild)
-    if voice and len(queue) > 0:
-        if now == len(queue) - 1:
-            end = True
+    print('e')
+    if voice:
+        if len(queue) > 0:
+            if now == len(queue) - 1:
+                end = True
+            else:
+                end = False
+            if not (end and not loop):
+                try:
+                    if not pause:
+                        if end:
+                            voice.play(FFmpegPCMAudio(queue[0]['url'], **FFMPEG_OPTIONS))
+                            now = 0
+                        else:
+                            voice.play(FFmpegPCMAudio(queue[now + 1]['url'], **FFMPEG_OPTIONS))
+                            now += 1
+
+                        if smsg != '':
+                            await smsg.delete()
+                        smsg = await cnl.send(embed=create_embed(f'Now playing - {now + 1}', discord.Color.green(), queue[now]))
+                        print('Playing: ' + queue[now]['title'])
+                except:
+                    ""
+            # else:
+            # print('End of queue')
         else:
-            end = False
-        if not (end and not loop):
-            try:
-                if not pause:
-                    if end:
-                        voice.play(FFmpegPCMAudio(queue[0]['url'], **FFMPEG_OPTIONS))
-                        now = 0
-                    else:
-                        print('e')
-                        voice.play(FFmpegPCMAudio(queue[now + 1]['url'], **FFMPEG_OPTIONS))
-                        print('a')
-                        now += 1
-
-                    if smsg != '':
-                        await smsg.delete()
-                    smsg = await cnl.send(embed=create_embed(f'Now playing - {now + 1}', discord.Color.green(), queue[now]))
-                    print('Playing: ' + queue[now]['title'])
-            except:
-                ""
-        # else:
-        # print('End of queue')
+            now = -1
     else:
-        now = -1
-
-
-
-@client.command()
-async def songplayer(ctx):
-    SongPlayer.start()
+        SongPlayer.stop()
 
 
 # command for bot to join the channel of the user, if the bot has already joined and is in a different channel, it will move to the channel the user is in
@@ -172,106 +172,109 @@ async def play(ctx, *search):
             code = search.split('/')[-1]
             links = []
 
-            if "open.spotify.com/album" in search:
-                results = sp.album_tracks(code)
-                info = {'title': results['name'], 'uploader': results['owner']['display_name'],
-                        'uploader_url': results['owner']['external_urls']['spotify'],
-                        'webpage_url': results['external_urls']['spotify'],
-                        'thumbnail': results['images'][0]['url'],
-                        'duration': 0}
-                results = results['tracks']
-                tracks = results['items']
-
-                while results['next']:
-                    results = sp.next(results)
-                    tracks.extend(results['items'])
-
-                links = []
-
-                for track in tracks:
-                    try:
-                        links.append([track['name']])
-                        for artist in track['artists']:
-                            links[-1].append(artist['name'])
-                    except:
-                        pass
-
-            if "open.spotify.com/playlist" in search:
-                results = sp.playlist_items(code)
-                info = {'title': results['name'], 'uploader': results['owner']['display_name'],
-                        'uploader_url': results['owner']['external_urls']['spotify'],
-                        'webpage_url': results['external_urls']['spotify'],
-                        'thumbnail': results['images'][0]['url'],
-                        'duration': 0}
-                results = results['tracks']
-                tracks = results['items']
-                while results['next']:
-                    results = sp.next(results)
-                    tracks.extend(results['items'])
-
-                links = []
-                for track in tracks:
-                    try:
-                        links.append([track['track']['name']])
-                        for artist in track['track']['artists']:
-                            links[-1].append(artist['name'])
-                        info['duration'] += track['track']['duration_ms']
-                    except:
-                        pass
-                info['duration'] = info['duration']/1000
-                print(info)
-
-
-
-            if links == []:
-                try:
-                    with YoutubeDL(YDL_OPTIONS) as ydl:
-                        info = ydl.extract_info("ytsearch:%s" % search, download=False)['entries'][0]
-
-                    queue.append({'title': info['title'], 'duration': info['duration'], 'uploader': info['uploader'],
-                                  'webpage_url': info['webpage_url'], 'url': info['url'],
-                                  'thumbnail': info['thumbnail'], 'uploader_url': info['uploader_url']})
-
-                    await ctx.send(embed=(create_embed('Added to queue', discord.Color.purple(), info)))
-                    print(f"Added {info['title']}")
-                except Exception:
-                    print('Error')
-            else:
-                threads=[]
-                for track in links:
-                    song = ' '.join(track)
-                    thread = threading.Thread(target=download_task, args=(song, len(queue)))
-                    threads.append(thread)
-                    queue.append('')
-
-                for thread in threads:
-                    thread.start()
-
-                    # Wait for all the downloads to complete
-                for thread in threads:
-                    thread.join()
+            if search.lower() == 'radio 2':
+                info = {'title': 'Radio 2', 'duration': 'Groter dan je moeder', 'uploader': 'Le interwebs',
+                              'webpage_url': 'https://www.nporadio2.nl/', 'url': 'https://icecast.omroep.nl/radio2-bb-mp3',
+                              'thumbnail': 'https://cdn.onlineradiobox.com/img/logo/6/9676.png', 'uploader_url': 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'}
+                queue.append(info)
                 await ctx.send(embed=create_embed('Added to queue', discord.Color.purple(), info))
+
+
+            else:
+                if "open.spotify.com/album" in search:
+                    results = sp.album_tracks(code)
+                    info = {'title': results['name'], 'uploader': results['owner']['display_name'],
+                            'uploader_url': results['owner']['external_urls']['spotify'],
+                            'webpage_url': results['external_urls']['spotify'],
+                            'thumbnail': results['images'][0]['url'],
+                            'duration': 0}
+                    results = results['tracks']
+                    tracks = results['items']
+
+                    while results['next']:
+                        results = sp.next(results)
+                        tracks.extend(results['items'])
+
+                    links = []
+
+                    for track in tracks:
+                        try:
+                            links.append([track['name']])
+                            for artist in track['artists']:
+                                links[-1].append(artist['name'])
+                        except:
+                            pass
+
+                if "open.spotify.com/playlist" in search:
+                    results = sp.playlist_items(code)
+                    info = {'title': results['name'], 'uploader': results['owner']['display_name'],
+                            'uploader_url': results['owner']['external_urls']['spotify'],
+                            'webpage_url': results['external_urls']['spotify'],
+                            'thumbnail': results['images'][0]['url'],
+                            'duration': 0}
+                    results = results['tracks']
+                    tracks = results['items']
+                    while results['next']:
+                        results = sp.next(results)
+                        tracks.extend(results['items'])
+
+                    links = []
+                    for track in tracks:
+                        try:
+                            links.append([track['track']['name']])
+                            for artist in track['track']['artists']:
+                                links[-1].append(artist['name'])
+                            info['duration'] += track['track']['duration_ms']
+                        except:
+                            pass
+                    info['duration'] = info['duration']/1000
+                    print(info)
+
+
+
+                if links == []:
+                    try:
+                        with YoutubeDL(YDL_OPTIONS) as ydl:
+                            info = ydl.extract_info("ytsearch:%s" % search, download=False)['entries'][0]
+
+                        queue.append({'title': info['title'], 'duration': info['duration'], 'uploader': info['uploader'],
+                                      'webpage_url': info['webpage_url'], 'url': info['url'],
+                                      'thumbnail': info['thumbnail'], 'uploader_url': info['uploader_url']})
+
+                        await ctx.send(embed=(create_embed('Added to queue', discord.Color.purple(), info)))
+                        print(f"Added {info['title']}")
+                    except Exception:
+                        print('Error')
+                else:
+                    threads=[]
+                    for track in links:
+                        song = ' '.join(track)
+                        thread = threading.Thread(target=download_task, args=(song, len(queue)))
+                        threads.append(thread)
+                        queue.append('')
+
+                    for thread in threads:
+                        thread.start()
+
+                        # Wait for all the downloads to complete
+                    for thread in threads:
+                        thread.join()
+                    await ctx.send(embed=create_embed('Added to queue', discord.Color.purple(), info))
 
 @client.command(aliases=['radio'])
 async def radio2(ctx, search):
     channel = ctx.message.author.voice.channel
     global player
     info = {'title': "Radio"}
-    try:
-        player = await channel.connect()
-    except:
-        pass
+    voice = get(client.voice_clients, guild=ctx.guild)
+
     if search == "radio2" :
-
         player.play(FFmpegPCMAudio('https://icecast.omroep.nl/radio2-bb-mp3'))
-        await ctx.message.add_reaction('📻')
+
     elif search == "Qmusic" :
-
         player.play(FFmpegPCMAudio('https://23833.live.streamtheworld.com/QMUSICNLAAC_96.aac'))
-        await ctx.message.add_reaction('📻')
 
-
-    #ctx.send("Ok ga ik spelen en mogelijk alle shit breken.")
+    await ctx.message.add_reaction('📻')
 
 
 @client.command()
