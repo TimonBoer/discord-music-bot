@@ -252,6 +252,26 @@ async def play(ctx, *search):
                     thread.join()
                 await ctx.send(embed=create_embed('Added to queue', discord.Color.purple(), info))
 
+@client.command(aliases=['radio'])
+async def radio2(ctx, search):
+    channel = ctx.message.author.voice.channel
+    global player
+    info = {'title': "Radio"}
+    try:
+        player = await channel.connect()
+    except:
+        pass
+    if search == "radio2" :
+
+        player.play(FFmpegPCMAudio('https://icecast.omroep.nl/radio2-bb-mp3'))
+        await ctx.message.add_reaction('📻')
+    elif search == "Qmusic" :
+
+        player.play(FFmpegPCMAudio('https://23833.live.streamtheworld.com/QMUSICNLAAC_96.aac'))
+        await ctx.message.add_reaction('📻')
+
+
+    #ctx.send("Ok ga ik spelen en mogelijk alle shit breken.")
 
 
 @client.command()
