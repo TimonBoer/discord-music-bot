@@ -91,6 +91,15 @@ def download_task(song, item):
                   'uploader_url': info['uploader_url']}
 
 
+async def updateembed():
+    global now
+    global smsg
+    global cnl
+    global queue
+    if smsg != '':
+        await smsg.delete()
+    smsg = await cnl.send(embed=create_embed(f'Now playing - {now + 1}', discord.Color.green(), queue[now]))
+
 
 @tasks.loop(seconds=1)
 async def SongPlayer(ctx):
@@ -103,7 +112,6 @@ async def SongPlayer(ctx):
     global cnl
     FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
     voice = get(client.voice_clients, guild=ctx.guild)
-    print('e')
     if voice:
         if len(queue) > 0:
             if now == len(queue) - 1:
@@ -126,8 +134,9 @@ async def SongPlayer(ctx):
                         print('Playing: ' + queue[now]['title'])
                 except:
                     ""
-            # else:
-            # print('End of queue')
+            else:
+
+                print('End of queue')
         else:
             now = -1
     else:
@@ -177,7 +186,14 @@ async def play(ctx, *search):
                               'webpage_url': 'https://www.nporadio2.nl/', 'url': 'https://icecast.omroep.nl/radio2-bb-mp3',
                               'thumbnail': 'https://cdn.onlineradiobox.com/img/logo/6/9676.png', 'uploader_url': 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'}
                 queue.append(info)
-                await ctx.send(embed=create_embed('Added to queue', discord.Color.purple(), info))
+                await ctx.send(embed=create_embed(f'Added to queue on {len(queue)}', discord.Color.purple(), info))
+
+            if search.lower() == 'qmusic':
+                info = {'title': 'Qmusic', 'duration': 'Groter dan je moeder', 'uploader': 'Le interwebs',
+                              'webpage_url': 'https://qmusic.nl/', 'url': 'https://23833.live.streamtheworld.com/QMUSICNLAAC_96.aac',
+                              'thumbnail': 'https://media.online-radio.nl/images/stations/qmusic.png', 'uploader_url': 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'}
+                queue.append(info)
+                await ctx.send(embed=create_embed(f'Added to queue on {len(queue)}', discord.Color.purple(), info))
 
 
             else:
@@ -241,7 +257,7 @@ async def play(ctx, *search):
                                       'webpage_url': info['webpage_url'], 'url': info['url'],
                                       'thumbnail': info['thumbnail'], 'uploader_url': info['uploader_url']})
 
-                        await ctx.send(embed=(create_embed('Added to queue', discord.Color.purple(), info)))
+                        await ctx.send(embed=(create_embed(f'Added to queue on {len(queue)}', discord.Color.purple(), info)))
                         print(f"Added {info['title']}")
                     except Exception:
                         print('Error')
@@ -260,21 +276,6 @@ async def play(ctx, *search):
                     for thread in threads:
                         thread.join()
                     await ctx.send(embed=create_embed('Added to queue', discord.Color.purple(), info))
-
-@client.command(aliases=['radio'])
-async def radio2(ctx, search):
-    channel = ctx.message.author.voice.channel
-    global player
-    info = {'title': "Radio"}
-    voice = get(client.voice_clients, guild=ctx.guild)
-
-    if search == "radio2" :
-        player.play(FFmpegPCMAudio('https://icecast.omroep.nl/radio2-bb-mp3'))
-
-    elif search == "Qmusic" :
-        player.play(FFmpegPCMAudio('https://23833.live.streamtheworld.com/QMUSICNLAAC_96.aac'))
-
-    await ctx.message.add_reaction('📻')
 
 
 @client.command()
@@ -372,19 +373,15 @@ async def clear(ctx):
 
 @client.command(aliases=['now'])
 async def current(ctx):
-    global queue
     global now
     global cnl
     global smsg
-    if smsg !='':
-        smsg.delete()
     cnl = ctx.message.channel
     print(now)
     if now == -1:
         await ctx.message.channel.send('Not playing anything')
     else:
-        smsg = await ctx.message.channel.send(
-            embed=create_embed(f'Now playing - {now + 1}', discord.Color.green(), queue[now]))
+        await updateembed()
 
 
 @client.command(aliases=['skip', 'n'])
@@ -472,6 +469,7 @@ async def remove(ctx, item):
             voice.stop()
         elif now > item - 1:
             now -= 1
+        await updateembed()
     except:
         return
 
@@ -488,6 +486,7 @@ async def shuffle(ctx):
         if info['webpage_url'] == song:
             now = x
             await ctx.message.add_reaction('🔀')
+            await updateembed()
             return
 
 
