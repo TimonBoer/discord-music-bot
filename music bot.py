@@ -16,7 +16,7 @@ file_exists = os.path.exists('config.json')
 if os.path.exists('config.json') == False:
     # maak bestand aan
     print("There is no config file. Making a file...")
-    config = {"bottoken": "???", "spotify-id": "???", "SpotifySecret": "???", "prefix": "."}
+    config = {"bottoken": "???", "spotify-id": "???", "SpotifySecret": "???", "prefixes": ["."]}
     with open('config.json', 'w') as f:
         json.dump(config, f)
     print("Setup the config file and restart python")
@@ -28,7 +28,7 @@ with open('config.json', 'r') as f:
     ## bottoken is dus config["bottoken"]
 
 
-client = commands.Bot(command_prefix=config["prefix"])  # prefix our commands with '.'
+client = commands.Bot(command_prefix=config["prefixes"])  # prefix our commands with '.'
 token = config["bottoken"]
 
 sp = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials(client_id=config["spotify-id"], client_secret=config["SpotifySecret"]))
@@ -67,10 +67,10 @@ def convduration(duration):
         elif duration < 3600*24:
             return time.strftime('%H:%M:%S', time.gmtime(duration))
         else:
-            return time.strftime('%D:%H:%M:%S', time.gmtime(duration))
+            hrs = str(int((duration - (duration & 3600)) / 3600))
+            return hrs + time.strftime(':%M:%S', time.gmtime(duration % 3600))
     except:
         return duration
-
 
 
 def create_embed(title, color, info):
@@ -150,13 +150,16 @@ async def join(ctx):
     cnl = ctx.message.channel
     try:
         channel = ctx.message.author.voice.channel
+    except:
+        channel = None
+    if channel:
         voice = get(client.voice_clients, guild=ctx.guild)
         if voice and voice.is_connected():
             await voice.move_to(channel)
         else:
             await channel.connect()
             SongPlayer.start(ctx)
-    except:
+    else:
         await ctx.message.channel.send('You are not connected to a voice channel')
 
 
@@ -166,6 +169,11 @@ async def play(ctx, *search):
     global end
     global queue
     global cnl
+    try:
+        channel = ctx.message.author.voice.channel
+    except:
+        await ctx.message.channel.send('You are not connected to a voice channel')
+        return
     cnl = ctx.message.channel
     search = ' '.join(search)
 
@@ -175,12 +183,11 @@ async def play(ctx, *search):
     if not voice or not voice.is_connected():
         await join(ctx)
         voice = get(client.voice_clients, guild=ctx.guild)
+    else:
+        await voice.move_to(channel)
 
     if voice:
         async with ctx.typing():
-            code = search.split('/')[-1]
-            links = []
-
             if search.lower() == 'radio 2':
                 info = {'title': 'Radio 2', 'duration': 'Groter dan je moeder', 'uploader': 'Le interwebs',
                               'webpage_url': 'https://www.nporadio2.nl/', 'url': 'https://icecast.omroep.nl/radio2-bb-mp3',
@@ -194,13 +201,14 @@ async def play(ctx, *search):
                               'thumbnail': 'https://media.online-radio.nl/images/stations/qmusic.png', 'uploader_url': 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'}
                 queue.append(info)
                 await ctx.send(embed=create_embed(f'Added to queue on {len(queue)}', discord.Color.purple(), info))
-
-
             else:
+                code = search.split('/')[-1]
+                links = []
+
                 if "open.spotify.com/album" in search:
                     results = sp.album_tracks(code)
-                    info = {'title': results['name'], 'uploader': results['owner']['display_name'],
-                            'uploader_url': results['owner']['external_urls']['spotify'],
+                    info = {'title': results['name'], 'uploader': results['artists'][0]['name'],
+                            'uploader_url': results['artists'][0]['uri'],
                             'webpage_url': results['external_urls']['spotify'],
                             'thumbnail': results['images'][0]['url'],
                             'duration': 0}
@@ -212,14 +220,15 @@ async def play(ctx, *search):
                         tracks.extend(results['items'])
 
                     links = []
-
                     for track in tracks:
                         try:
                             links.append([track['name']])
                             for artist in track['artists']:
                                 links[-1].append(artist['name'])
+                            info['duration'] += track['duration_ms']
                         except:
                             pass
+                    info['duration'] = info['duration'] / 1000
 
                 if "open.spotify.com/playlist" in search:
                     results = sp.playlist_items(code)
@@ -243,24 +252,18 @@ async def play(ctx, *search):
                             info['duration'] += track['track']['duration_ms']
                         except:
                             pass
-                    info['duration'] = info['duration']/1000
-                    print(info)
-
-
+                    info['duration'] = info['duration'] / 1000
 
                 if links == []:
-                    try:
-                        with YoutubeDL(YDL_OPTIONS) as ydl:
-                            info = ydl.extract_info("ytsearch:%s" % search, download=False)['entries'][0]
+                    with YoutubeDL(YDL_OPTIONS) as ydl:
+                        info = ydl.extract_info("ytsearch:%s" % search, download=False)['entries'][0]
 
-                        queue.append({'title': info['title'], 'duration': info['duration'], 'uploader': info['uploader'],
-                                      'webpage_url': info['webpage_url'], 'url': info['url'],
-                                      'thumbnail': info['thumbnail'], 'uploader_url': info['uploader_url']})
+                    queue.append({'title': info['title'], 'duration': info['duration'], 'uploader': info['uploader'],
+                                  'webpage_url': info['webpage_url'], 'url': info['url'],
+                                  'thumbnail': info['thumbnail'], 'uploader_url': info['uploader_url']})
 
-                        await ctx.send(embed=(create_embed(f'Added to queue on {len(queue)}', discord.Color.purple(), info)))
-                        print(f"Added {info['title']}")
-                    except Exception:
-                        print('Error')
+                    await ctx.send(embed=(create_embed(f'Added to queue on {len(queue)}', discord.Color.purple(), info)))
+                    print(f"Added {info['title']}")
                 else:
                     threads=[]
                     for track in links:
