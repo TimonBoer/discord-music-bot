@@ -56,6 +56,12 @@ async def on_ready():
     global smsg
     smsg = ''
 
+    global vcnl
+    vcnl = ''
+
+    global disc
+    disc = 0
+
     print('Logged in as {0.user}'.format(client))
 
 
@@ -110,35 +116,53 @@ async def SongPlayer(ctx):
     global now
     global smsg
     global cnl
+    global vcnl
+    global disc
     FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
     voice = get(client.voice_clients, guild=ctx.guild)
     if voice:
-        if len(queue) > 0:
-            if now == len(queue) - 1:
-                end = True
-            else:
-                end = False
-            if not (end and not loop):
-                try:
-                    if not pause:
-                        if end:
-                            voice.play(FFmpegPCMAudio(queue[0]['url'], **FFMPEG_OPTIONS))
-                            now = 0
-                        else:
-                            voice.play(FFmpegPCMAudio(queue[now + 1]['url'], **FFMPEG_OPTIONS))
-                            now += 1
-
-                        if smsg != '':
-                            await smsg.delete()
-                        smsg = await cnl.send(embed=create_embed(f'Now playing - {now + 1}', discord.Color.green(), queue[now]))
-                        print('Playing: ' + queue[now]['title'])
-                except:
-                    ""
-            else:
-
-                print('End of queue')
+        if len(vcnl.members) == 1:
+            disc += 1
         else:
-            now = -1
+            disc = 0
+        if disc == 60:
+            voice.stop()
+            queue = []
+            await voice.disconnect()
+            if smsg != '':
+                await smsg.delete()
+                smsg = ''
+            pause = False
+            disc = 0
+            await cnl.send('Disconnected because everyone left')
+            return
+        else:
+            if len(queue) > 0:
+                if now == len(queue) - 1:
+                    end = True
+                else:
+                    end = False
+                if not (end and not loop):
+                    try:
+                        if not pause:
+                            if end:
+                                voice.play(FFmpegPCMAudio(queue[0]['url'], **FFMPEG_OPTIONS))
+                                now = 0
+                            else:
+                                voice.play(FFmpegPCMAudio(queue[now + 1]['url'], **FFMPEG_OPTIONS))
+                                now += 1
+
+                            if smsg != '':
+                                await smsg.delete()
+                            smsg = await cnl.send(embed=create_embed(f'Now playing - {now + 1}', discord.Color.green(), queue[now]))
+                            print('Playing: ' + queue[now]['title'])
+                    except:
+                        ""
+                else:
+
+                    print('End of queue')
+            else:
+                now = -1
     else:
         SongPlayer.stop()
 
@@ -147,6 +171,7 @@ async def SongPlayer(ctx):
 @client.command(aliases=['j'])
 async def join(ctx):
     global cnl
+    global vcnl
     cnl = ctx.message.channel
     try:
         channel = ctx.message.author.voice.channel
@@ -154,6 +179,8 @@ async def join(ctx):
         channel = None
     if channel:
         voice = get(client.voice_clients, guild=ctx.guild)
+        vcnl = client.get_channel(channel.id)
+        print(vcnl)
         if voice and voice.is_connected():
             await voice.move_to(channel)
         else:
@@ -348,7 +375,6 @@ async def leave(ctx):
     if voice:
         voice.stop()
         await voice.disconnect()
-        SongPlayer.stop()
         await ctx.message.add_reaction('💀')
 
 
