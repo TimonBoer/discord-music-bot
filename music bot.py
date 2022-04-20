@@ -10,6 +10,7 @@ import random
 import os.path
 import json
 from spotipy.oauth2 import SpotifyClientCredentials
+import random
 
 # check voor config bestand
 file_exists = os.path.exists('config.json')
@@ -26,7 +27,6 @@ if os.path.exists('config.json') == False:
 with open('config.json', 'r') as f:
     config = json.load(f)
     ## bottoken is dus config["bottoken"]
-
 
 client = commands.Bot(command_prefix=config["prefixes"])  # prefix our commands with '.'
 token = config["bottoken"]
@@ -367,11 +367,15 @@ async def pause(ctx):
 async def leave(ctx):
     global queue
     global smsg
+    FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
     if smsg != '':
         await smsg.delete()
     smsg = ''
     queue = []
     voice = get(client.voice_clients, guild=ctx.guild)
+    player = voice.create_ffmpeg_player('https://ia800106.us.archive.org/0/items/Gta5WastedSoundEffect/Gta%205%20Wasted%20Sound%20effect.mp3', after=lambda: print('done'))
+    player.start()
+
     if voice:
         voice.stop()
         await voice.disconnect()
@@ -517,6 +521,20 @@ async def shuffle(ctx):
             await ctx.message.add_reaction('🔀')
             await updateembed()
             return
+
+@client.command(aliases=['howgay'])
+async def gay(ctx):
+    print(ctx.author.mention)
+    head = f"How gay is {ctx.author}"
+    if ctx.author.mention == "<@393436169293266946>":
+        createEmbed = discord.Embed(title=head, description='100% gay')  # Embed
+        msg = await ctx.send(embed=createEmbed)  # Define the message that the bot sends
+        await msg.add_reaction("🏳️‍🌈")  # Add your reaction
+    else:
+        gaypercent = random.randint(0,25)
+        createEmbed = discord.Embed(title=head, description=f"{gaypercent}% gay")  # Embed
+        msg = await ctx.send(embed=createEmbed)  # Define the message that the bot sends
+
 
 
 @client.command()
