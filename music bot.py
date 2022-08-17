@@ -4,11 +4,11 @@ from discord.utils import get
 from discord import FFmpegPCMAudio
 from youtube_dl import YoutubeDL
 import time
-import threading
 import spotipy
 import random
 import os.path
 import json
+import requests
 from spotipy.oauth2 import SpotifyClientCredentials
 
 # check voor config bestand
@@ -82,19 +82,51 @@ def convduration(duration):
 def create_embed(title, color, info):
     embed = discord.Embed(title=title, description=f"[{info['title']}]({info['webpage_url']})", color=color) \
         .add_field(name='Duration', value=convduration(info['duration'])) \
-        .add_field(name='Uploader', value=f"[{info['uploader']}]({info['uploader_url']})") \
+        .add_field(name='Uploader', value=info['uploader']) \
         .set_thumbnail(url=info['thumbnail'])
     return embed
 
 
-def download_task(song, item):
-    global queue
-    YDL_OPTIONS = {'format': 'bestaudio', 'noplaylist': 'True'}
+async def ytlookup(lookup):
+    global cnl
+    YDL_OPTIONS = {"format": "bestaudio/best",
+                   "outtmpl": "%(extractor)s-%(id)s-%(title)s.%(ext)s",
+                   "restrictfilenames": True,
+                   "noplaylist": True,
+                   "nocheckcertificate": True,
+                   "ignoreerrors": False,
+                   "logtostderr": False,
+                   "quiet": True,
+                   "no_warnings": True,
+                   "default_search": "auto",
+                   "source_address": "0.0.0.0"}
     with YoutubeDL(YDL_OPTIONS) as ydl:
-        info = ydl.extract_info("ytsearch:%s" % song, download=False)['entries'][0]
-    queue[item] = {'title': info['title'], 'duration': info['duration'], 'uploader': info['uploader'],
-                  'webpage_url': info['webpage_url'], 'url': info['url'], 'thumbnail': info['thumbnail'],
-                  'uploader_url': info['uploader_url']}
+        try:
+            info = ydl.extract_info("ytsearch:%s" % lookup, download=False)['entries'][0]
+        except:
+            try:
+                info = ydl.extract_info(lookup, download=False)
+            except:
+                await cnl.send(f"'{lookup}' geeft gezeik")
+                return 'cringe'
+    request_response = requests.head(info['url'])
+    status_code = request_response.status_code
+    if status_code != 200:
+        print(f"Redownloading '{lookup}', Error code:{status_code}")
+        with YoutubeDL(YDL_OPTIONS) as ydl:
+            try:
+                info = ydl.extract_info("ytsearch:%s" % lookup, download=False)['entries'][0]
+            except:
+                info = ydl.extract_info(lookup, download=False)
+        request_response = requests.head(info['url'])
+        status_code = request_response.status_code
+        if status_code != 200:
+            await cnl.send(f"'{lookup}' deed cringe, Error {status_code}")
+            return 'cringe'
+    print(f"Downloaded {info['title']}")
+    return {'title': info['title'], 'duration': info['duration'], 'uploader': f"[{info['uploader']}]({info['uploader_url']})",
+                                  'webpage_url': info['webpage_url'], 'url': info['url'],
+                                  'thumbnail': info['thumbnail']}
 
 
 async def updateembed():
@@ -121,11 +153,11 @@ async def SongPlayer(ctx):
     FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
     voice = get(client.voice_clients, guild=ctx.guild)
     if voice:
-        if len(vcnl.members) == 1:
+        if len(vcnl.voice_states.keys()) == 1:
             disc += 1
         else:
             disc = 0
-        if disc == 60:
+        if disc == 10:
             voice.stop()
             queue = []
             await voice.disconnect()
@@ -146,9 +178,15 @@ async def SongPlayer(ctx):
                     try:
                         if not pause:
                             if end:
+                                if queue[0]['url'] == '':
+                                    queue[0]['url'] = ' '
+                                    queue[0] = await ytlookup(queue[0]['lookup'])
                                 voice.play(FFmpegPCMAudio(queue[0]['url'], **FFMPEG_OPTIONS))
                                 now = 0
                             else:
+                                if queue[now + 1]['url'] == '':
+                                    queue[now + 1]['url'] = ' '
+                                    queue[now + 1] = await ytlookup(queue[now + 1]['lookup'])
                                 voice.play(FFmpegPCMAudio(queue[now + 1]['url'], **FFMPEG_OPTIONS))
                                 now += 1
 
@@ -159,7 +197,6 @@ async def SongPlayer(ctx):
                     except:
                         ""
                 else:
-
                     print('End of queue')
             else:
                 now = -1
@@ -204,7 +241,6 @@ async def play(ctx, *search):
     cnl = ctx.message.channel
     search = ' '.join(search)
 
-    YDL_OPTIONS = {'format': 'bestaudio', 'noplaylist': 'True'}
     voice = get(client.voice_clients, guild=ctx.guild)
 
     if not voice or not voice.is_connected():
@@ -234,8 +270,10 @@ async def play(ctx, *search):
 
                 if "open.spotify.com/album" in search:
                     results = sp.album_tracks(code)
-                    info = {'title': results['name'], 'uploader': results['artists'][0]['name'],
-                            'uploader_url': results['artists'][0]['uri'],
+                    artists = []
+                    for artist in results['artists']:
+                        artists.append(f"[{artist['name']}]({artist['external_urls']['spotify']})")
+                    info = {'title': results['name'], 'uploader': ', '.join(artists),
                             'webpage_url': results['external_urls']['spotify'],
                             'thumbnail': results['images'][0]['url'],
                             'duration': 0}
@@ -247,64 +285,64 @@ async def play(ctx, *search):
                         tracks.extend(results['items'])
 
                     links = []
-                    for track in tracks:
+                    for i, track in enumerate(tracks):
                         try:
-                            links.append([track['name']])
+                            artistsl = []
+                            artistsn = []
                             for artist in track['artists']:
-                                links[-1].append(artist['name'])
+                                artistsl.append(f"[{artist['name']}]({artist['external_urls']['spotify']})")
+                                artistsn.append(artist['name'])
+                            links.append({'title': track['name'], 'duration': int(track['duration_ms']) / 1000, 'uploader': ', '.join(artistsl),
+                                  'webpage_url': track['external_urls']['spotify'], 'url': '',
+                                  'thumbnail': info['thumbnail'], 'lookup': info['title'] + track['name'] + ', '.join(artistsn)})
                             info['duration'] += track['duration_ms']
                         except:
-                            pass
+                            await cnl.send(f"#{i + 1} failed")
                     info['duration'] = info['duration'] / 1000
 
                 if "open.spotify.com/playlist" in search:
                     results = sp.playlist_items(code)
-                    info = {'title': results['name'], 'uploader': results['owner']['display_name'],
-                            'uploader_url': results['owner']['external_urls']['spotify'],
+                    info = {'title': results['name'], 'uploader': f"[{results['owner']['display_name']}]({results['owner']['external_urls']['spotify']})",
                             'webpage_url': results['external_urls']['spotify'],
                             'thumbnail': results['images'][0]['url'],
                             'duration': 0}
                     results = results['tracks']
                     tracks = results['items']
+
                     while results['next']:
                         results = sp.next(results)
                         tracks.extend(results['items'])
 
                     links = []
-                    for track in tracks:
+                    for i, track in enumerate(tracks):
+                        track = track['track']
+                        artistsl = []
+                        artistsn = []
                         try:
-                            links.append([track['track']['name']])
-                            for artist in track['track']['artists']:
-                                links[-1].append(artist['name'])
-                            info['duration'] += track['track']['duration_ms']
+                            for artist in track['artists']:
+                                artistsl.append(f"[{artist['name']}]({artist['external_urls']['spotify']})")
+                                artistsn.append(artist['name'])
+                            links.append({'title': track['name'], 'duration': int(track['duration_ms']) / 1000,
+                                          'uploader': ', '.join(artistsl),
+                                          'webpage_url': track['external_urls']['spotify'], 'url': '',
+                                          'thumbnail': track['album']['images'][0]['url'],
+                                          'lookup': f"{track['album']['name']} {track['name']} {', '.join(artistsn)}"})
+                            info['duration'] += track['duration_ms']
                         except:
-                            pass
+                            await cnl.send(f"Song #{i + 1} failed")
                     info['duration'] = info['duration'] / 1000
 
                 if links == []:
-                    with YoutubeDL(YDL_OPTIONS) as ydl:
-                        info = ydl.extract_info("ytsearch:%s" % search, download=False)['entries'][0]
-
-                    queue.append({'title': info['title'], 'duration': info['duration'], 'uploader': info['uploader'],
-                                  'webpage_url': info['webpage_url'], 'url': info['url'],
-                                  'thumbnail': info['thumbnail'], 'uploader_url': info['uploader_url']})
-
-                    await ctx.send(embed=(create_embed(f'Added to queue on {len(queue)}', discord.Color.purple(), info)))
-                    print(f"Added {info['title']}")
+                    info = await ytlookup(search)
+                    if info != 'cringe':
+                        queue.append(info)
+                        await ctx.send(embed=(create_embed(f'Added to queue on {len(queue)}', discord.Color.purple(), info)))
+                        print(f"Added {info['title']}")
+                    else:
+                        print(f"{search} deed gaar")
                 else:
-                    threads=[]
-                    for track in links:
-                        song = ' '.join(track)
-                        thread = threading.Thread(target=download_task, args=(song, len(queue)))
-                        threads.append(thread)
-                        queue.append('')
-
-                    for thread in threads:
-                        thread.start()
-
-                        # Wait for all the downloads to complete
-                    for thread in threads:
-                        thread.join()
+                    for link in links:
+                        queue.append(link)
                     await ctx.send(embed=create_embed('Added to queue', discord.Color.purple(), info))
 
 
@@ -319,7 +357,6 @@ async def jump(ctx, item):
     pause = False
     voice.stop()
     await ctx.message.add_reaction('⤵️')
-
 
 
 # command to resume voice if it is paused
