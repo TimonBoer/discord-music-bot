@@ -166,7 +166,7 @@ async def SongPlayer(ctx):
                 smsg = ''
             pause = False
             disc = 0
-            await cnl.send('Disconnected because everyone left')
+            await cnl.send('Died from cringe')
             return
         else:
             if len(queue) > 0:
