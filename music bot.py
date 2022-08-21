@@ -89,17 +89,7 @@ def create_embed(title, color, info):
 
 async def ytlookup(lookup):
     global cnl
-    YDL_OPTIONS = {"format": "bestaudio/best",
-                   "outtmpl": "%(extractor)s-%(id)s-%(title)s.%(ext)s",
-                   "restrictfilenames": True,
-                   "noplaylist": True,
-                   "nocheckcertificate": True,
-                   "ignoreerrors": False,
-                   "logtostderr": False,
-                   "quiet": True,
-                   "no_warnings": True,
-                   "default_search": "auto",
-                   "source_address": "0.0.0.0"}
+    YDL_OPTIONS = {'format': 'bestaudio', 'noplaylist': 'True'}
     with YoutubeDL(YDL_OPTIONS) as ydl:
         try:
             info = ydl.extract_info("ytsearch:%s" % lookup, download=False)['entries'][0]
@@ -135,7 +125,10 @@ async def updateembed():
     global cnl
     global queue
     if smsg != '':
-        await smsg.delete()
+        try:
+            await smsg.delete()
+        except:
+            print('Cringe met message deleten')
     smsg = await cnl.send(embed=create_embed(f'Now playing - {now + 1}', discord.Color.green(), queue[now]))
 
 
@@ -166,7 +159,7 @@ async def SongPlayer(ctx):
                 smsg = ''
             pause = False
             disc = 0
-            await cnl.send('Died from cringe')
+            await cnl.send('Disconnected because everyone left')
             return
         else:
             if len(queue) > 0:
@@ -405,7 +398,10 @@ async def leave(ctx):
     global queue
     global smsg
     if smsg != '':
-        await smsg.delete()
+        try:
+            await smsg.delete()
+        except:
+            print('Cringe met message deleten')
     smsg = ''
     queue = []
     voice = get(client.voice_clients, guild=ctx.guild)
@@ -424,7 +420,10 @@ async def clear(ctx):
     cnl = ctx.message.channel
     queue = []
     if smsg != '':
-        await smsg.delete()
+        try:
+            await smsg.delete()
+        except:
+            print('Cringe met message deleten')
     smsg = ''
 
     global now
